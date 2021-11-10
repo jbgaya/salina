@@ -18,3 +18,12 @@ We provide many reinforcement learning examples to show how to use the library.
 Algorithms have been benchmarked on classical environments (including Atari and MUJOCO).
 
 * See [RL Benchmark](BENCHMARK.md)
+
+## RL Projects
+
+SaLinA has already been used in more complex RL projects :
+
+* Learning a subpsace of policies for online adaptation in Reinforcement Learning ([code](rl/LoP/) | [paper](https://arxiv.org/pdf/2110.05169.pdf))
+
+
+* See [RL Benchmark](BENCHMARK.md)

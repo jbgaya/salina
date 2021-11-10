@@ -1,0 +1,32 @@
+
+wrapper_classname: salina_examples.rl.LoP.envs.create_gym_env
+device : cuda:0
+path: experiments/halfcheetah/model/
+k_shot: 5
+seed: 2
+env:
+  env_name: CustomHalfcheetah
+  episode_length: 1000
+  env_spec:
+    torso: 1.5
+    thig: 1.
+    shin: 1
+    foot: 1.
+    gravity: 1.
+    friction: 1.
+
+model:
+  geometry: simplex
+  distribution: flat
+  policy:
+    classname: salina_examples.rl.LoP.agents.LoPAgent
+    n_models:
+    hidden_size:
+    n_layers:
+    env:
+      classname: ${wrapper_classname}
+      env_name: ${env.env_name}
+
+hydra:
+  run:
+    dir: ${path}
