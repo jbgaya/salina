@@ -36,6 +36,9 @@ def run_line_ppo(policy_agent, critic_agent, logger, cfg):
     optimizer_policy = torch.optim.Adam(policy_agent.parameters(), lr=cfg.algorithm.lr_policy)
     optimizer_critic = torch.optim.Adam(critic_agent.parameters(), lr=cfg.algorithm.lr_critic)
 
+    seq_policy_agent = TemporalAgent(policy_agent)
+    seq_critic_agent = TemporalAgent(critic_agent)
+
     # Using replay buffer
     print("[LinePPO] Initializing replay buffer")
     buffer_size = cfg.algorithm.minibatch_size * cfg.algorithm.num_minibatches
@@ -51,7 +54,7 @@ def run_line_ppo(policy_agent, critic_agent, logger, cfg):
     iteration = 0
     while (epoch < cfg.algorithm.max_epochs):
         env_interactions = buffer_size * cfg.acquisition.n_timesteps * (epoch  + 1)
-        logger.add_scalar("monitor/env_interactions", (cfg.acquisition.n_envs * cfg.acquisition.n_timesteps * (epoch  + 1)), epoch)
+        logger.add_scalar("monitor/env_interactions", env_interactions, epoch)
 
         # Evaluating the training policy
         if (epoch % cfg.validation.evaluate_every == 0) and (epoch > 0):
@@ -84,7 +87,7 @@ def run_line_ppo(policy_agent, critic_agent, logger, cfg):
             loss = loss_policy + penalty * cfg.algorithm.beta
             optimizer_policy.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(critic_agent.parameters(), cfg.algorithm.clip_grad)
+            torch.nn.utils.clip_grad_norm_(policy_agent.parameters(), cfg.algorithm.clip_grad)
             optimizer_policy.step()
             logger.add_scalar("loss/policy", loss_policy.item(), iteration)
 

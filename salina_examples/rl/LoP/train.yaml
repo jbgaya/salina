@@ -1,12 +1,12 @@
 env_name: CustomHalfcheetah
 wrapper_classname: salina_examples.rl.LoP.envs.create_gym_env
-n_models: 2
+n_models: 5
 save_every: 100
 device : cuda:0
 
 logger:
   classname: salina.logger.TFLogger
-  log_dir: experiments/halfcheetah/${hydra:job.id}
+  log_dir: experiments/ensembling/${hydra:job.id}
   every_n_seconds: 10
   modulo: 1
   verbose: False
@@ -67,7 +67,7 @@ algorithm:
   minibatch_size: 512
   num_minibatches: 32
   time_limit: 10000000
-  max_epochs: 2500
+  max_epochs: 1501
   discount_factor: 0.99
   clip_ratio: 0.3
   action_std: 0.5
@@ -79,7 +79,7 @@ algorithm:
   device: cuda:0
   n_models: ${n_models}
   geometry: simplex
-  distribution: flat
+  distribution: categorical
 
 hydra:
   run:
@@ -89,7 +89,7 @@ hydra:
     max_num_timeout: 0
     cpus_per_task: 1
     signal_delay_s: 30
-    timeout_min: 1200
+    timeout_min: 600
     gpus_per_node: 1
     tasks_per_node: 1
     partition: prioritylab

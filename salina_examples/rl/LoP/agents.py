@@ -134,12 +134,19 @@ class CriticAgent(Agent):
             nn.Linear(hs, 1),
         )
 
-    def forward(self, **args):
-        input = self.get("env/env_obs")
-        alphas = self.get("alphas")
-        x = torch.cat([input,alphas], dim=-1)
-        critic = self.model_critic(x).squeeze(-1)
-        self.set("critic", critic)
+    def forward(self, t = None, **args):
+        if t == None:
+            input = self.get("env/env_obs")
+            alphas = self.get("alphas")
+            x = torch.cat([input,alphas], dim=-1)
+            critic = self.model_critic(x).squeeze(-1)
+            self.set("critic", critic)
+        else:
+            input = self.get(("env/env_obs",t))
+            alphas = self.get(("alphas",t))
+            x = torch.cat([input,alphas], dim=-1)
+            critic = self.model_critic(x).squeeze(-1)
+            self.set(("critic",t), critic)
 
 class Normalizer(TAgent):
     def __init__(self, env):
