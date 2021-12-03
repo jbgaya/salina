@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import pandas as pd
 import hydra
 import os
 import torch
@@ -13,6 +14,7 @@ from salina.agents import Agents, TemporalAgent
 from salina import Workspace, instantiate_class
 from salina_examples.rl.LoP.agents import Normalizer, CustomBraxAgent
 from salina.agents import Agents, TemporalAgent
+from salina_examples.rl.LoP.envs import test_cfgs
 from torch.distributions.dirichlet import Dirichlet
 
 def generate_k_shot_points(n,dim,geometry,dist):
@@ -43,14 +45,17 @@ def _generate_mask(done):
     return mask
 
 def run_eval(cfg):
-    model_normalizer = torch.load(os.getcwd()+"/normalizer")
-    model_policy = torch.load(os.getcwd()+"/policy")
+    dfs = []
+    model_normalizer = torch.load(cfg.path+"/normalizer")
+    model_policy = torch.load(cfg.path+"/policy")
     for key in list(model_policy.keys()):
         if "agent." in key:
             model_policy[key.replace('agent.','')] = model_policy.pop(key)
     cfg.model.policy.n_models = model_policy[list(model_policy)[0]].shape[0]
     cfg.model.policy.hidden_size = model_policy[list(model_policy)[0]].shape[1]
     cfg.model.policy.n_layers = int((len(model_policy) - 2) // 2)
+    if cfg.model.distribution == "categorical":
+        cfg.k_shot = cfg.model.policy.n_models
 
     policy_agent = instantiate_class(cfg.model.policy).to(cfg.device)
     normalizer_agent = Normalizer(cfg.env).to(cfg.device)
@@ -59,20 +64,35 @@ def run_eval(cfg):
 
     alpha = generate_k_shot_points(cfg.k_shot,cfg.model.policy.n_models,cfg.model.geometry,cfg.model.distribution)
 
-    env_agent = CustomBraxAgent(cfg.k_shot,**cfg.env)
-    agent = TemporalAgent(Agents(env_agent, normalizer_agent, policy_agent))
-    agent.seed(cfg.seed)
-    workspace = Workspace()
-    alphas = alpha.unsqueeze(0).repeat(cfg.env.episode_length,1,1).to(cfg.device)
-    workspace.set_full("alphas",alphas)
-    agent(workspace, t = 0, n_steps = cfg.env.episode_length, replay=False, update_normalizer = False, action_std=0.0)
-    reward, done, alphas = workspace["env/reward", "env/done","alphas"]
-    mask = _generate_mask(done)
-    reward = (reward * mask).sum(0)
-    reward = reward.reshape(cfg.k_shot)
+    for env_name, env_spec in test_cfgs.items():
+        env_spec = env_spec["env_spec"]
+        cfg.env.env_spec.torso = env_spec["torso"]
+        cfg.env.env_spec.thig = env_spec["thig"]
+        cfg.env.env_spec.shin = env_spec["shin"]
+        cfg.env.env_spec.foot = env_spec["foot"]
+        cfg.env.env_spec.gravity = env_spec["gravity"]
+        cfg.env.env_spec.friction = env_spec["friction"]
+        env_agent = CustomBraxAgent(cfg.k_shot,**cfg.env)
+        agent = TemporalAgent(Agents(env_agent, normalizer_agent, policy_agent))
+        agent.seed(cfg.seed)
+        workspace = Workspace()
+        alphas = alpha.unsqueeze(0).repeat(cfg.env.episode_length,1,1).to(cfg.device)
+        workspace.set_full("alphas",alphas)
+        agent(workspace, t = 0, n_steps = cfg.env.episode_length, replay=False, update_normalizer = False, action_std=0.0)
+        reward, done, alphas = workspace["env/reward", "env/done","alphas"]
+        mask = _generate_mask(done)
+        reward = (reward * mask).sum(0)
+        reward = reward.reshape(cfg.k_shot)
 
-    for k,r in enumerate(reward):
-        print("k =",k+1,"\t:",round(r.item(),0))
+        print("\n--- For",env_name,":")
+        for k,r in enumerate(reward):
+            print("k =",k+1,"\t:",round(r.item(),0))
+        df = {"alpha":alphas[0,:,0].cpu(),"rewards":reward.reshape(-1).cpu()}
+        df["env_name"] = env_name
+        dfs.append(pd.DataFrame(df))
+        
+    dfs = pd.concat(dfs)
+    dfs.to_pickle(cfg.path+"/eval.pkl")
 
 @hydra.main(config_path=".", config_name="evaluation.yaml")
 def main(cfg):

@@ -3,12 +3,14 @@ from gym.wrappers import TimeLimit
 from brax.envs import wrappers
 import numpy as np
 from brax.envs.halfcheetah import Halfcheetah
+from brax.envs.grasp import Grasp
 from brax.envs.ant import Ant
 from brax.envs.fetch import Fetch
 
 from brax.envs.halfcheetah import Halfcheetah
 from google.protobuf import text_format
-from brax.envs.halfcheetah import _SYSTEM_CONFIG
+from brax.envs.halfcheetah import _SYSTEM_CONFIG as halfcheetah_config
+from brax.envs.grasp import _SYSTEM_CONFIG as grasp_config
 import brax
 
 body_keys = {"torso":[0],
@@ -34,13 +36,21 @@ def modify_cheetah(cfg,specs):
 
 class CustomHalfcheetah(Halfcheetah):
     def __init__(self, **kwargs):
-        config = text_format.Parse(_SYSTEM_CONFIG, brax.Config())
+        config = text_format.Parse(halfcheetah_config, brax.Config())
         if "env_spec" in kwargs:
             config = modify_cheetah(config,kwargs["env_spec"])
         self.sys = brax.System(config)
 
+class CustomGrasp(Halfcheetah):
+    def __init__(self, **kwargs):
+        config = text_format.Parse(grasp_config, brax.Config())
+        #if "env_spec" in kwargs:
+        #    config = modify_cheetah(config,kwargs["env_spec"])
+        self.sys = brax.System(config)
+
 __envs__ = {
     'CustomHalfcheetah': CustomHalfcheetah,
+    'CustomGrasp': CustomGrasp
 }
 
 def create_gym_env(env_name,
@@ -64,6 +74,14 @@ def create_gym_env(env_name,
     return wrappers.VectorGymWrapper(env, seed=seed, backend=backend)
 
 test_cfgs = {
+    "Halfcheetah":{"env_spec":{
+      "torso": 1.,
+      "thig": 1.,
+      "shin": 1.,
+      "foot": 1.,
+      "gravity": 1.,
+      "friction": 1.,
+    }},
     "HalfcheetahBigFoot":{"env_spec":{
       "torso": 1.,
       "thig": 1.,

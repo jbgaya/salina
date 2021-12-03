@@ -90,7 +90,7 @@ class LoPAgent(TAgent):
 
     def forward(self, t, replay, action_std, **args):
         if replay:
-            input = self.get("env/env_obs")
+            input = self.get("env/transformed_obs")
             alphas = self.get("alphas")
             mean = self.model(input,alphas)
             std = torch.ones_like(mean) * action_std + 0.000001
@@ -101,7 +101,7 @@ class LoPAgent(TAgent):
             self.set("action_logprobs", logp_pi)
 
         else:
-            input = self.get(("env/env_obs", t))
+            input = self.get(("env/transformed_obs", t))
             alphas = self.get(("alphas",t))
             with torch.no_grad():
                 mean = self.model(input,alphas)
@@ -136,13 +136,13 @@ class CriticAgent(Agent):
 
     def forward(self, t = None, **args):
         if t == None:
-            input = self.get("env/env_obs")
+            input = self.get("env/transformed_obs")
             alphas = self.get("alphas")
             x = torch.cat([input,alphas], dim=-1)
             critic = self.model_critic(x).squeeze(-1)
             self.set("critic", critic)
         else:
-            input = self.get(("env/env_obs",t))
+            input = self.get(("env/transformed_obs",t))
             alphas = self.get(("alphas",t))
             x = torch.cat([input,alphas], dim=-1)
             critic = self.model_critic(x).squeeze(-1)
@@ -163,7 +163,7 @@ class Normalizer(TAgent):
         if update_normalizer:
             self.update(input)
         input = self.normalize(input)
-        self.set(("env/env_obs", t), input)
+        self.set(("env/transformed_obs", t), input)
 
     def update(self, x):
         if self.n is None:

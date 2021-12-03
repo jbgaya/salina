@@ -36,9 +36,6 @@ def run_line_ppo(policy_agent, critic_agent, logger, cfg):
     optimizer_policy = torch.optim.Adam(policy_agent.parameters(), lr=cfg.algorithm.lr_policy)
     optimizer_critic = torch.optim.Adam(critic_agent.parameters(), lr=cfg.algorithm.lr_critic)
 
-    seq_policy_agent = TemporalAgent(policy_agent)
-    seq_critic_agent = TemporalAgent(critic_agent)
-
     # Using replay buffer
     print("[LinePPO] Initializing replay buffer")
     buffer_size = cfg.algorithm.minibatch_size * cfg.algorithm.num_minibatches
