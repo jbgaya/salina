@@ -11,6 +11,7 @@ import torch.nn as nn
 
 from salina import Agent, Workspace, get_arguments, get_class, instantiate_class
 from salina.agents import Agents
+from typing import Optional, Tuple
 
 
 def _layer_norm(module, x):
@@ -41,6 +42,16 @@ class TransformerBlockAgent(Agent):
         output_name="attn_out/x",
         use_layer_norm=False,
     ):
+        """[summary]
+
+        Args:
+            embedding_size ([type]): size of the embeddings (input and output)
+            n_heads ([type]):number of heads
+            n_steps ([type], optional): Number of previous timesteps to consider. None = all previous timesteps
+            input_name (str, optional):  Defaults to "attn_in/x".
+            output_name (str, optional):  Defaults to "attn_out/x".
+            use_layer_norm (bool, optional):  Defaults to False.
+        """
         super().__init__()
         self.n_steps = n_steps
         self.multiheadattention = nn.MultiheadAttention(embedding_size, n_heads)
@@ -59,9 +70,43 @@ class TransformerBlockAgent(Agent):
             # nn.Dropout(config.resid_pdrop),
         )
 
+        self._cached_mask: Optional[torch.Tensor] = None
+        self._cached_mask_params: Tuple[int, Optional[int]] = (-1, None)
+
+    def _get_mask(self, T: int, n_steps: Optional[int], device: torch.device):
+        """
+        boolean mask convention:
+        true means compute, and false means skip the computation
+        """
+
+        if (T, n_steps) == self._cached_mask_params:
+            return self._cached_mask
+
+        if self.n_steps is None or self.n_steps == 0:
+                attn_mask = (
+                    torch.triu(torch.ones(T, T), diagonal=1).bool().to(device)
+                )
+        else:
+                attn_mask = torch.triu(torch.ones(T, T), diagonal=1).to(device)
+                attn_mask2 = torch.triu(torch.ones(T, T), diagonal=1 - self.n_steps).to(
+                    device
+                )
+                attn_mask = attn_mask + 1 - attn_mask2
+                attn_mask = attn_mask.bool()
+
+        # Cache the generated mask
+        self._cached_mask = attn_mask
+        self._cached_mask_params = (T, n_steps)
+
+        return self._cached_mask
+
+
+
+
+
     def forward(self, t=None, **kwargs):
         if not t is None:
-            if self.n_steps is None:
+            if self.n_steps is None or self.n_steps == 0:
                 tokens = self.get(self.input_name)[: t + 1]
             else:
                 from_time = max(0, t + 1 - self.n_steps)
@@ -87,17 +132,8 @@ class TransformerBlockAgent(Agent):
             values = tokens
             queries = tokens
             T = queries.size()[0]
-            if self.n_steps is None:
-                attn_mask = (
-                    torch.triu(torch.ones(T, T), diagonal=1).bool().to(keys.device)
-                )
-            else:
-                attn_mask = torch.triu(torch.ones(T, T), diagonal=1).to(keys.device)
-                attn_mask2 = torch.triu(torch.ones(T, T), diagonal=1 - self.n_steps).to(
-                    keys.device
-                )
-                attn_mask = attn_mask + 1 - attn_mask2
-                attn_mask = attn_mask.bool()
+
+            attn_mask = self._get_mask(T, self.n_steps, keys.device)
 
             attn_output, attn_output_weights = self.multiheadattention(
                 queries, keys, values, attn_mask=attn_mask
@@ -118,6 +154,16 @@ class TransformerMultiBlockAgent(Agents):
         prefix="attn_",
         use_layer_norm=False,
     ):
+        """ A agent that is a transformers architecture. The agent will read the `prefix+'in'` variable and output the `prefix+'out'` variable.
+
+        Args:
+            n_layers ([int]): Number of layers
+            embedding_size ([int]): Size of the vectors
+            n_heads ([int]): number of heads
+            n_steps ([int], optional): If >0 then, it corresponds to the number of steps to look back. Defaults to None.
+            prefix (str, optional): The name of the variable in the workspace. Defaults to "attn_".
+            use_layer_norm (bool, optional): With/without layer normalization. Defaults to False.
+        """
         agents = []
         for k in range(n_layers):
             in_prefix = prefix + str(k + 1)
@@ -143,25 +189,30 @@ if __name__ == "__main__":
     print(
         "Check that transformers and batch transformers are computing the same output"
     )
-    a = torch.randn(5, 3, 4)
+    import sys
+
+    device = sys.argv[1]
+    a = torch.randn(5, 3, 64).to(device)
     workspace = Workspace()
-    workspace.set_full("x", a)
-    agent = TransformerBlockAgent(
-        embedding_size=4,
-        n_heads=1,
+    workspace.set_full("attn_in/x", a)
+    agent = TransformerMultiBlockAgent(
+        embedding_size=64,
+        n_layers=2,
+        n_heads=4,
         n_steps=2,
-        input_name="x",
-        output_name="y",
         use_layer_norm=False,
     )
+    agent.to(device)
     for t in range(5):
         agent(workspace, t=t)
-    y1 = workspace.get_full("y")
+    y1 = workspace.get_full("attn_out/x")
+    print("Output step by step: ")
     print(y1)
 
     workspace = Workspace()
-    workspace.set_full("x", a)
+    workspace.set_full("attn_in/x", a)
     agent(workspace)
-    y2 = workspace.get_full("y")
+    y2 = workspace.get_full("attn_out/x")
+    print("Output Global: ")
     print(y2)
     assert ((y1 - y2) ** 2).lt(0.0000001).all(), "Problem..."

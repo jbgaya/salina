@@ -14,7 +14,6 @@ import torch.multiprocessing as mp
 from salina import Agent
 from salina.workspace import Workspace, _SplitSharedWorkspace
 
-
 def f(agent, in_queue, out_queue, seed):
     """The function that is executed in a single process"""
     out_queue.put("ok")
@@ -171,7 +170,7 @@ class RemoteAgent(Agent):
 
 
 class NRemoteAgent(Agent):
-    """Multiple agents executed in different processes. Use the NRemoteAgent.create function to create such an agent"""
+    """Multiple agents executed in different processes. Use the `NRemoteAgent.create` function to create such an agent"""
 
     def __init__(self, agents, batch_dims):
         super().__init__()

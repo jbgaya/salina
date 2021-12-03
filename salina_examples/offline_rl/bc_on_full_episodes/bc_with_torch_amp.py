@@ -24,7 +24,7 @@ from salina import Workspace, get_arguments, get_class, instantiate_class
 from salina.agents import Agents, NRemoteAgent, TemporalAgent
 from salina.agents.gyma import AutoResetGymAgent, GymAgent
 from salina.logger import TFLogger
-
+import torch.cuda.amp
 
 def _state_dict(agent, device):
     sd = agent.state_dict()
@@ -95,17 +95,19 @@ def run_bc(buffer, logger, action_agent, cfg_algorithm, cfg_env):
             cfg_algorithm.loss_device
         )
         _st=time.time()
-        T = replay_workspace.time_size()
-        length = replay_workspace["env/done"].float().argmax(0)
-        mask = torch.arange(T).unsqueeze(-1).repeat(1, batch_size).to(length.device)
-        length = length.unsqueeze(0).repeat(T, 1)
-        mask = mask.le(length).float()
-        target_action = replay_workspace["action"].detach()
-        action_agent(replay_workspace)
-        action = replay_workspace["action"]
-        mse = (target_action - action) ** 2
-        mse_loss = (mse.sum(2) * mask).sum() / mask.sum()
-        logger.add_scalar("loss/mse", mse_loss.item(), epoch)
+        with torch.cuda.amp.autocast():
+            T = replay_workspace.time_size()
+            length = replay_workspace["env/done"].float().argmax(0)
+            mask = torch.arange(T).unsqueeze(-1).repeat(1, batch_size).to(length.device)
+            length = length.unsqueeze(0).repeat(T, 1)
+            mask = mask.le(length).float()
+            target_action = replay_workspace["action"].detach()
+            action_agent(replay_workspace)
+            action = replay_workspace["action"]
+            mse = (target_action - action) ** 2
+            mse_loss = (mse.sum(2) * mask).sum() / mask.sum()
+            logger.add_scalar("loss/mse", mse_loss.item(), epoch)
+
         optimizer_action.zero_grad()
         mse_loss.backward()
         if cfg_algorithm.clip_grad > 0:
