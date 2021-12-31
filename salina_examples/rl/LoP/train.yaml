@@ -1,12 +1,12 @@
 env_name: CustomHalfcheetah
 wrapper_classname: salina_examples.rl.LoP.envs.create_gym_env
-n_models: 25
+n_models: 2
 save_every: 100
 device : cuda:0
 
 logger:
   classname: salina.logger.TFLogger
-  log_dir: experiments/ensembling/${hydra:job.id}
+  log_dir: test/${hydra:job.id}
   every_n_seconds: 10
   modulo: 1
   verbose: False
@@ -65,7 +65,7 @@ algorithm:
   device: cuda:0
   n_models: ${n_models}
   geometry: simplex
-  distribution: categorical
+  distribution: flat
 
 hydra:
   run:
